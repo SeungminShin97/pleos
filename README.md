@@ -4,9 +4,9 @@
 
 장거리 운전 중 졸음쉼터에 도착했을 때, 점심시간에 자차에서 잠깐 쉬고 싶을 때 사용합니다. 처음에 편한 자세와 환경을 저장해 두면, 이후에는 정차·주차 상태를 확인하고 사용자의 요청에 따라 적용합니다.
 
-> **현재 상태: 상세 설계 / 구현 전 — 2026-11-07**
+> **현재 상태: Android 초기 프로젝트 생성 — 2026-11-07**
 >
-> 이 저장소의 첫 산출물은 이 README입니다. Android 프로젝트, 실행 가능한 APK, 실차·에뮬레이터 검증 결과는 아직 없습니다. 아래의 화면·클래스·데이터 모델은 구현을 위한 설계안이며, 공식 SDK의 실제 클래스나 메서드와 구분합니다. 문서에서 지원을 확인한 기능도 목표 환경에서 작동을 검증해야 합니다.
+> Kotlin·Compose 앱, 홈 화면, 차량 상태 인터페이스, 주차 조건 판정과 단위 테스트를 추가했습니다. `demo`는 모의 상태를 사용하며 `vehicle`은 공식 SDK 의존성을 포함하지만 실제 차량 연결·조작은 아직 구현하지 않았습니다. 프리셋·복귀·음성·알람 등 아래 상세 설계의 나머지 기능은 구현 예정입니다. [실행 방법](#12-실행-방법과-저장소-구성) · [개발 환경](docs/DEVELOPMENT.md)
 
 ## 목차
 
@@ -303,7 +303,7 @@ AAOS는 차량 전원에 따라 suspend·hibernation·shutdown 상태로 전환�
 
 속도·기어 등 표준 정보는 AAOS, 좌석 등 특화 기능은 Pleos SDK를 우선 검토합니다. 실제 권한·속성·대상 영역은 각 참조 문서와 목표 이미지에서 확인합니다. [Pleos API 정책](https://document.pleos.ai/en/docs/pleos-only/vehicle-app-planning-guide/pleos-connect-sdk-api), [AAOS VehiclePropertyIds](https://developer.android.com/reference/android/car/VehiclePropertyIds)
 
-공식 Vehicle 소개 문서의 기준 버전은 SDK v2.3.2 / Vehicle Service v2.3.21입니다. 이는 문서 기준이며 프로젝트 의존성을 확정한 값은 아닙니다. Gradle·AGP·JDK·minSdk·targetSdk·SDK 버전은 실제 개발 환경과 공모전 이미지 요구 사항을 확인한 후 고정합니다. [Vehicle SDK 소개](https://document.pleos.ai/en/docs/pleos-only/connect-sdk-pleos/Vehicle/intro)
+공식 Vehicle 소개 문서의 기준 버전은 SDK v2.3.2 / Vehicle Service v2.3.21입니다. 프로젝트는 Gradle 8.12·AGP 8.9.2·Kotlin 2.2.21·minSdk 28·targetSdk 34·compileSdk 35로 시작하며, 차량 빌드에 Vehicle SDK 2.3.2를 선언했습니다. 실제 Pleos 이미지·서비스와의 실행 호환성은 별도 검증합니다. [Vehicle SDK 소개](https://document.pleos.ai/en/docs/pleos-only/connect-sdk-pleos/Vehicle/intro)
 
 ### 구성도
 
@@ -428,7 +428,7 @@ VIN은 핵심 기능에 필요하지 않으므로 수집하지 않습니다. 로
 
 ## 10. 검증 계획과 완료 기준
 
-아래 항목은 **예정된 검증**이며 아직 통과 결과가 없습니다. 에뮬레이터 검증으로 실차의 물리적 안전성까지 입증하지 않습니다.
+아래 항목은 **전체 MVP의 검증 계획**입니다. 초기 프로젝트의 주차 조건 단위 테스트와 APK 빌드 검증은 전체 기능의 완료를 뜻하지 않습니다. 실제 SDK·에뮬레이터·실차의 통합 검증은 아직 수행하지 않았습니다.
 
 ### 먼저 끝낼 기술 검증
 
@@ -509,20 +509,36 @@ B 시나리오(장소 검색·내비게이션)는 일정 미정의 후속 범위
 
 | 항목 | 현재 상태 |
 | --- | --- |
-| Android 소스·Gradle 프로젝트 | 아직 없음 |
-| 실행 명령 | 프로젝트 생성 후 검증한 명령을 추가할 예정 |
-| APK 파일·Release | 아직 없음 |
-| 테스트 환경 | Pleos Emulator·Virtual Console을 사용할 계획이며 아직 구성·실행하지 않음 |
+| Android 소스·Gradle 프로젝트 | `app` 모듈, Kotlin·Compose, Gradle Wrapper 포함 |
+| 빌드 변형 | `demoDebug`: 모의 상태 / `vehicleDebug`: 실제 adapter 연결 전의 차단 상태 |
+| APK 파일·Release | 데모·차량 debug APK 생성 확인. 공모전 제출용 서명 release APK는 아직 없음 |
+| 테스트 환경 | SDK 35 기반 로컬 빌드·주차 조건 단위 테스트·Android Lint. Pleos Emulator·Virtual Console 실행은 아직 안 함 |
 | 실차 테스트 | 수행하지 않음 |
 
-현재는 저장소를 내려받아 설계를 검토할 수 있습니다.
+2026-11-07 로컬 검증: 두 APK 빌드·주차 정책 테스트 10개·Android Lint 통과. 설치·화면 실행 및 실제 차량 SDK 통합은 미검증입니다. [검증 기록](docs/VERIFICATION.md)
+
+저장소를 내려받고 Android Studio에서 루트 폴더를 엽니다. SDK Platform 35·Build Tools 35.0.0과 JDK 17 이상을 준비합니다.
 
 ```bash
 git clone https://github.com/SeungminShin97/pleos.git
 cd pleos
 ```
 
-Android Studio에서 빌드·실행할 프로젝트는 후속 작업으로 생성합니다. 생성 후 공식 Pleos 개발 환경 요구 사항에 맞춰 JDK·Android SDK·에뮬레이터·차량 SDK와 권한을 설정하고, 실제 확인한 버전 및 실행 절차를 이 절에 기록합니다.
+Windows PowerShell:
+
+```powershell
+.\gradlew.bat :app:assembleDemoDebug :app:assembleVehicleDebug
+.\gradlew.bat :app:testDemoDebugUnitTest :app:testVehicleDebugUnitTest
+.\gradlew.bat :app:lintDemoDebug :app:lintVehicleDebug
+```
+
+macOS/Linux에서는 `./gradlew`를 사용합니다. Android Studio의 Build Variants에서 `demoDebug`를 선택하면 일반 Android 기기·에뮬레이터로 화면과 P·정지 / D·주행 모의 상태 전환을 확인할 수 있습니다. `vehicleDebug`는 automotive 기기용이며, 연결 구현 전에는 정상 차량 상태를 가장하지 않고 조작을 차단합니다.
+
+- 데모 APK: `app/build/outputs/apk/demo/debug/app-demo-debug.apk`
+- 차량 APK: `app/build/outputs/apk/vehicle/debug/app-vehicle-debug.apk`
+- 소스 빌드의 상세 환경·설정: [DEVELOPMENT.md](docs/DEVELOPMENT.md)
+
+이 APK 경로는 빌드 후 생성되는 로컬 출력입니다. APK를 Git에 넣지 않으며 GitHub Actions의 실행 artifact로 보관하도록 구성했습니다. 두 빌드 모두 현재 프리셋 저장·적용·복귀는 개발 예정으로 표시합니다.
 
 ### 클라우드 테스트 가능 범위
 
@@ -540,28 +556,28 @@ Pleos 공식 문서는 Windows/Linux용 시스템 이미지를 제공하고, 현
 
 클라우드 Pleos 실행은 **가속 확인 → 이미지 Cold Boot → ADB 연결 → Virtual Console 상태 변경 → 앱에서 실제 값 조회·제어 → 로그·화면 증거 확보** 순서로 검증합니다. 원격 ADB와 화면 접근은 인증된 터널 등으로 제한하며 외부에 공개하지 않습니다. VM에 GPU가 있다는 사실만으로 에뮬레이터가 그 GPU를 사용할 수 있다고 판정하지 않습니다.
 
-현재 클라우드 VM·CI workflow·에뮬레이터는 구성하지 않았습니다. 위 내용은 실행 가능성 판단과 향후 구성 계획입니다.
+`.github/workflows/android.yml`에 두 빌드의 APK 생성·단위 테스트·Lint와 결과 artifact 업로드를 구성했습니다. Pleos 에뮬레이터를 실행하는 클라우드 VM은 아직 구성하지 않았습니다.
 
-### 예정 구조
+### 현재 구조와 후속 확장
 
-다음은 **향후 생성할 구조**이며 현재 파일 목록이 아닙니다. 첫 구현은 단일 `app` 모듈의 패키지 분리로 시작합니다.
+단일 `app` 모듈에서 공통 코드와 빌드별 차량 연결 코드를 분리합니다. Fake 코드는 `demo` 소스에만 둡니다.
 
 ```text
 pleos/
 ├── README.md
 ├── app/
-│   └── src/main/
-│       ├── java/.../
-│       │   ├── presentation/      # 홈·프리셋·진행·휴식·복구 화면
-│       │   ├── domain/            # 정책·상태·유스케이스·인터페이스
-│       │   ├── data/              # Room·DataStore·저장소 구현
-│       │   └── integration/       # AAOS·Pleos·음성·내비·알람 adapter
-│       └── assets/schema.json     # Gleo 연동 단계에서 추가
-├── docs/                          # API 검증·시연·테스트 결과
-├── apk/                           # 검증한 제출용 release APK
-├── companion/                     # 선택 확장: Android 휴대폰 앱
-└── relay/                         # 선택 확장: 알람 중계
+│   └── src/
+│       ├── main/java/.../         # 홈 화면·ViewModel·주차 정책·상태 인터페이스
+│       ├── demo/java/.../         # FakeVehicleGateway·데모 의존성 구성
+│       ├── vehicle/java/.../      # 실제 연결 전 placeholder·공식 SDK 의존성
+│       └── test/java/.../         # 주차 조건 테스트
+├── docs/                          # 개발 환경·검증 기록
+├── gradle/                        # 버전 카탈로그·Wrapper
+├── .github/workflows/android.yml  # 빌드·테스트·Lint
+└── gradlew / gradlew.bat
 ```
+
+Room·DataStore 저장소, 적용·복귀 유스케이스, Gleo 스키마, 휴대폰 앱·중계 서버는 해당 기능 구현 단계에서 추가합니다. 내비게이션 코드는 현재 포함하지 않습니다.
 
 ## 13. 참고 자료
 
