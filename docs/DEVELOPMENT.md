@@ -1,5 +1,7 @@
 # 개발 환경과 실행
 
+문서 시작점은 [docs/README](README.md), 사용자 의도·결정은 [CONTEXT](CONTEXT.md), 상세 설계는 [DESIGN](DESIGN.md), 다음 작업은 [ROADMAP](ROADMAP.md)에 있습니다.
+
 ## 프로젝트 범위
 
 Kotlin + Jetpack Compose 기반의 초기 Android 앱입니다. 현재는 홈 화면, 차량 상태 인터페이스, 주차 조건 판정, 모의 상태 전환만 있습니다. 프리셋 저장·적용·복귀, 음성, 알람은 아직 구현하지 않았습니다. 장소 검색과 내비게이션은 후속 범위입니다.

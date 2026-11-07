@@ -50,4 +50,19 @@ Gradle 결과: `BUILD SUCCESSFUL`, 101개 작업 실행.
 - 서명 release APK 및 앱 마켓 심사 요건
 - 클라우드 Pleos 에뮬레이터 실행
 
-GitHub Actions에는 같은 빌드·테스트·Lint 명령을 구성했습니다. 이 로컬 기록을 원격 CI 실행 성공 기록으로 간주하지 않습니다.
+## 별도의 Linux CI 검증
+
+2026-11-07 커밋 `11b94f2886ff24e79b778c87b449dcd6827dd1a8`의 [GitHub Actions 실행](https://github.com/SeungminShin97/pleos/actions/runs/42371489410)이 성공했습니다. 두 debug APK 빌드·두 변형 단위 테스트·Lint·artifact 업로드를 실행한 별도의 원격 검증입니다. 2026-11-08 문서 정리 시에도 해당 실행의 success 상태를 확인했습니다.
+
+최초 CI에서는 SDK 설치 단계의 폐기된 `tools` 패키지 요청으로 중단됐고, 지원되는 SDK 설치 설정으로 수정한 뒤 위 실행을 통과했습니다. Windows Wrapper의 저장소 줄바꿈도 함께 정리했습니다.
+
+당시 artifact 이름은 `android-debug-build`이며 보관 기간은 14일입니다. 만료되면 새 Actions 실행이나 로컬 빌드로 생성합니다. 이 성공도 Pleos 에뮬레이터·차량 Service 실행을 검증한 것은 아닙니다.
+
+관련 문서: [개발 환경](DEVELOPMENT.md) · [현재 인수인계와 다음 작업](ROADMAP.md)
+
+
+## 개발 맥락 문서 정리 · 2026-11-08
+
+대화의 개발 요구 19개를 CONTEXT에 추적 가능하게 정리하고, 기존 README의 상세 설계 전체 절을 DESIGN으로 이관했습니다. ROADMAP·REFERENCES·문서 시작점을 추가했습니다. 변경 파일 8개(루트 README와 docs의 문서 7개)의 내부 링크 49개, 코드 블록 닫힘, 요구 ID 누락 여부와 원래 설계 절 보존을 확인했습니다.
+
+이번 변경은 문서만 수정합니다. 앱 빌드·차량 기능 테스트를 새로 수행한 것으로 기록하지 않습니다. 기능·빌드 검증의 근거는 위에 명시한 코드 커밋과 실행 결과입니다.
