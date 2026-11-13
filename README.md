@@ -4,9 +4,9 @@
 
 장거리 운전 중 졸음쉼터·휴게소에서 짧게 쉬는 사람과 점심시간에 자차에서 혼자 쉬는 직장인을 위한 앱입니다. 사용자가 직접 맞춘 자세·환경을 기억하는 것이 핵심입니다.
 
-> **현재 상태: Android 초기 프로젝트**
+> **현재 상태: 차량 상태 읽기와 운전석 관측 설정 저장**
 >
-> Kotlin·Compose 홈, 차량 상태 인터페이스, 주차 조건 판정, 데모 상태 전환이 구현되어 있습니다. 실제 차량 연결·조작과 프리셋 저장·적용·복귀, 음성·알람은 아직 구현하지 않았습니다. B(장소 검색·숙소 검색·내비 연동)는 후속으로 보류합니다.
+> 홈, 주차 조건 판정, 데모 상태 전환, AAOS 기어와 속도 읽기 및 운전석 관측 설정의 로컬 저장을 구현했습니다. Room 세션 기록과 재시작 복구 기반도 추가했습니다. 실제 좌석 이동과 자동 재현은 미검증이며 적용과 복귀, 음성 및 알람은 아직 구현하지 않았습니다. [W04 저장 검증](docs/STORAGE_VALIDATION.md)
 
 ## 개발 문서
 
@@ -43,7 +43,7 @@ macOS/Linux에서는 `./gradlew`를 사용합니다. SDK 지정과 F: 캐시 설
 | 변형 | 실행 환경·동작 |
 | --- | --- |
 | `demoDebug` | 일반 API 28 이상 Android 기기·에뮬레이터. P·정지/D·주행 모의 상태 전환. 실제 차량 제어 없음 |
-| `vehicleDebug` | Pleos/AAOS automotive 환경용. Vehicle SDK 2.3.2 포함, 실제 adapter 연결 전이므로 미연결·조작 차단 상태 |
+| `vehicleDebug` | Pleos/AAOS용. AAOS 기어와 속도 읽기, 권한 및 연결 오류 처리. 차량 조작은 비활성 |
 
 APK는 빌드 후 아래 로컬 경로에 생성됩니다.
 
@@ -54,8 +54,12 @@ APK는 빌드 후 아래 로컬 경로에 생성됩니다.
 
 ## 확인된 검증과 다음 단계
 
-2026-11-07 기준 로컬 및 [Linux CI](https://github.com/SeungminShin97/pleos/actions/runs/42371489410)에서 두 debug APK 빌드·주차 정책 단위 테스트 10개·Android Lint 오류 없이 통과했습니다. 실제 기기 설치·Pleos 에뮬레이터 실행·차량 제어는 미검증입니다.
+W04에서 실제 운전석 11개 관측값 저장과 앱 재시작 후 유지를 확인했습니다. 두 변형의 DB 시나리오 각 8개와 별도 프로세스 종료 복구를 검증했습니다. 단위 테스트 20개와 두 변형 빌드 및 Lint도 통과했습니다. 자동 적용과 복귀는 보류합니다. [저장 및 복구 검증 기록](docs/STORAGE_VALIDATION.md)
 
-다음 단계는 공식 Pleos 환경에서 **차량 상태 읽기와 좌석 위치 조회·이동·중단·저장 위치 재현 방식**을 검증하는 것입니다. 단계별 완료 조건은 [ROADMAP](docs/ROADMAP.md)에 있습니다.
+W03에서 좌석 11개 축의 capability와 30개 위치값을 조회했습니다. 이동과 STOP 콜백은 왔지만 현재 이미지에서 위치 변화가 관측되지 않아 자동 좌석 적용과 복귀는 계속 보류합니다. [좌석 SDK 검증 기록](docs/SDK_VALIDATION.md)
 
-로컬 작업 위치는 `F:\Projects\pleos`이며 이 작업의 SDK·Gradle 캐시도 F:에 있습니다. 다른 개발 환경에서는 경로를 맞춰 설정합니다.
+기존 코드의 두 APK 빌드, 테스트와 Lint는 [Linux CI 재실행](https://github.com/SeungminShin97/pleos/actions/runs/42371489410/attempts/2)에서도 통과했습니다. 이후 로컬 Pleos v2.1.0에서 두 APK 설치와 홈 화면, 읽기 전용 AAOS 연동을 검증했습니다. 이번 변경을 CI에 올려 실행한 것은 아닙니다. 상세 결과는 [LOCAL_VALIDATION](docs/LOCAL_VALIDATION.md)을 확인합니다.
+
+다음 단계는 **좌석 위치 조회, 이동, 중단과 저장 위치 재현 방식** 검증입니다. 단계별 완료 조건은 [ROADMAP](docs/ROADMAP.md)에 있습니다.
+
+초기 로컬 환경은 `F:\Projects\pleos`입니다. 이번 로컬 검증은 F:가 없는 환경의 `C:\resume\pleos`에서 진행했습니다. SDK와 캐시 경로는 [LOCAL_VALIDATION](docs/LOCAL_VALIDATION.md)을 확인합니다.

@@ -1,8 +1,14 @@
 package io.github.seungminshin97.japeace
 
-import io.github.seungminshin97.japeace.data.vehicle.FakeVehicleGateway
+import android.content.Context
 
-fun createDependencies(): AppDependencies {
+import io.github.seungminshin97.japeace.data.vehicle.FakeVehicleGateway
+import io.github.seungminshin97.japeace.data.vehicle.FakeSettingsReader
+import io.github.seungminshin97.japeace.data.rest.RestDatabase
+import io.github.seungminshin97.japeace.data.rest.RoomRestRepository
+
+fun createDependencies(context: Context): AppDependencies {
     val gateway = FakeVehicleGateway()
-    return AppDependencies(vehicleGateway = gateway, demoControls = gateway)
+    return AppDependencies(vehicleGateway = gateway, demoControls = gateway,
+        restRepository = RoomRestRepository(RestDatabase.get(context)), settingsReader = FakeSettingsReader(gateway))
 }

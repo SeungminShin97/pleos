@@ -1,5 +1,9 @@
 # 자비스 (자.peace) 상세 설계
 
+W04 업데이트: Room 기반 프리셋, 원본 스냅샷, 세션과 작업 기록을 구현했습니다. DataStore와 실제 적용 및 복귀 coordinator는 아직 추가하지 않았습니다. 현재 구현과 한계는 [STORAGE_VALIDATION](STORAGE_VALIDATION.md)을 우선합니다.
+
+2026-11-08 구현 업데이트: 로컬 Pleos 부팅과 AAOS 기어 및 속도 읽기를 추가했습니다. 아래 초기 구현 현황은 작성 당시의 기준이며 현재 상태와 실측 결과는 [LOCAL_VALIDATION](LOCAL_VALIDATION.md)을 우선합니다. 좌석 쓰기, 프리셋, 음성 및 알람에 관한 내용은 계속 설계와 후속 계획입니다.
+
 문서 이관: 2026-11-08. 기존 루트 README의 상세 내용을 이 문서로 옮겼습니다. 사용자 요구·제안의 구분은 [CONTEXT](CONTEXT.md), 다음 작업은 [ROADMAP](ROADMAP.md), 검증 근거는 [VERIFICATION](VERIFICATION.md)을 확인합니다.
 
 **내 차에서 쉬고 싶은 순간, 저장해 둔 나만의 휴식 환경을 준비하고 이전 설정으로 돌아오도록 돕는 Pleos Connect 앱.**

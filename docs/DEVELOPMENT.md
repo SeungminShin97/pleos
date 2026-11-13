@@ -1,5 +1,9 @@
 # 개발 환경과 실행
 
+W04: Room 2.8.5와 KSP 2.2.21-2.0.4 기반 저장을 추가했습니다. 기본 instrumentation runner는 저장 검증이며 W03 좌석 probe는 별도 이름으로 유지합니다. 스키마와 DB 재현 명령은 [STORAGE_VALIDATION](STORAGE_VALIDATION.md)을 참고합니다. API 34 Pleos에서 관측 설정 저장만 검증했으며 실제 좌석 적용은 보류합니다.
+
+2026-11-08 업데이트: W01 로컬 Pleos 실행과 W02 AAOS 기어 및 속도 읽기를 진행했습니다. 현재 환경, 구현과 검증은 [LOCAL_VALIDATION](LOCAL_VALIDATION.md)이 최신 기준입니다. 아래 초기 환경의 placeholder 설명은 차량 상태 읽기 구현 전 기록이며, 이번 코드에는 연결과 읽기 전용 구독 및 오류 처리가 포함됩니다. 차량 쓰기 제어는 여전히 없습니다.
+
 문서 시작점은 [docs/README](README.md), 사용자 의도·결정은 [CONTEXT](CONTEXT.md), 상세 설계는 [DESIGN](DESIGN.md), 다음 작업은 [ROADMAP](ROADMAP.md)에 있습니다.
 
 ## 프로젝트 범위

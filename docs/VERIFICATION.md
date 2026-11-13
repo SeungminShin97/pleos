@@ -1,5 +1,11 @@
 # 초기 프로젝트 검증 기록
 
+W04 Room 저장 및 프로세스 복구의 최신 구현 검증은 [STORAGE_VALIDATION](STORAGE_VALIDATION.md)을 확인합니다. 아래 초기 프로젝트 기록은 당시 결과입니다.
+
+W03 좌석 SDK의 확인 결과와 미검증 범위는 [SDK_VALIDATION](SDK_VALIDATION.md)을 확인합니다.
+
+2026-11-08 로컬 Pleos 부팅과 APK 첫 화면 검증은 [LOCAL_VALIDATION.md](LOCAL_VALIDATION.md)를 확인합니다. 아래 2026-11-07 기록의 미검증 목록은 당시 기준입니다.
+
 검증일: 2026-11-07 (Asia/Seoul)
 
 ## 환경
