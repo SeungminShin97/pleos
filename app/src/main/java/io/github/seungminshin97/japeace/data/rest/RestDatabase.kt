@@ -87,6 +87,8 @@ interface RestDao {
     suspend fun markInterruptedOperations(id: String)
     @Query("UPDATE sessions SET state = 'RECOVERY_REQUIRED' WHERE id = :id AND activeSlot = 1")
     suspend fun markRecovery(id: String)
+    @Query("UPDATE sessions SET state = 'APPLIED' WHERE id = :id AND activeSlot = 1 AND state = 'PLANNED'")
+    suspend fun markApplied(id: String): Int
 }
 
 @Database(entities = [PresetRow::class, PresetSettingRow::class, SessionRow::class, BeforeRow::class, OperationRow::class],

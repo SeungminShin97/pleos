@@ -5,10 +5,42 @@ import io.github.seungminshin97.japeace.domain.rest.*
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
-class RoomRestRepository(private val database: RestDatabase) : RestRepository {
+class RoomRestRepository(private val database: RestDatabase) : RestExecutionStore {
     private val dao = database.records()
     override fun observePresets() = dao.observePresets().map { rows -> rows.map { it.toDomain() } }
     override fun observeActiveSession() = dao.observeActive().map { it?.toDomain() }
+    override suspend fun findRequest(requestId: String) = dao.request(requestId)?.toDomain()
+    override suspend fun getSession(sessionId: String) = checkNotNull(dao.session(sessionId)).toDomain()
+
+    override suspend fun markApplied(sessionId: String) = database.withTransaction {
+        val record = getSession(sessionId)
+        check(record.operations.isNotEmpty() && record.operations.all { it.state == OperationState.CONFIRMED })
+        check(dao.markApplied(sessionId) == 1)
+    }
+
+    override suspend fun prepareRestore(sessionId: String): StoredSession = database.withTransaction {
+        val session = getSession(sessionId)
+        check(dao.active()?.session?.id == sessionId)
+        check(session.state in setOf(SessionState.APPLIED, SessionState.RECOVERY_REQUIRED))
+        // The first operation for each setting is the apply entry in the v1 journal.
+        val applyCount = session.before.settings.size
+        if (session.operations.size == applyCount) {
+            val changed = session.operations.filter {
+                it.state == OperationState.CONFIRMED && it.beforeRaw != it.targetRaw
+            }.asReversed()
+            dao.insertOperations(changed.mapIndexed { index, operation ->
+                OperationRow(UUID.randomUUID().toString(), sessionId, applyCount + index,
+                    operation.key, operation.areaId, operation.targetRaw, operation.beforeRaw,
+                    OperationState.PLANNED.name, null, null)
+            })
+        }
+        getSession(sessionId)
+    }
+
+    override suspend fun requireRecovery(sessionId: String) = database.withTransaction {
+        dao.markInterruptedOperations(sessionId)
+        dao.markRecovery(sessionId)
+    }
 
     override suspend fun savePreset(name: String, capture: CapturedSettings): RestPreset {
         require(name.trim().length in 1..40) { "프리셋 이름은 1~40자로 입력해 주세요." }
@@ -69,7 +101,17 @@ class RoomRestRepository(private val database: RestDatabase) : RestRepository {
 
     override suspend fun completeSession(sessionId: String) = database.withTransaction {
         val record = checkNotNull(dao.session(sessionId))
-        check(record.operations.isNotEmpty() && record.operations.all { it.state == OperationState.CONFIRMED.name })
+        val apply = record.operations.sortedBy { it.sequence }.take(record.before.size)
+        val restore = record.operations.filter { it.sequence >= record.before.size }
+        val changed = apply.count { it.state == OperationState.CONFIRMED.name && it.beforeRaw != it.targetRaw }
+        val confirmed = OperationState.CONFIRMED.name
+        val resolved = if (record.session.state == SessionState.PLANNED.name) {
+            apply.isNotEmpty() && apply.all { it.state == confirmed }
+        } else {
+            restore.size == changed && restore.all { it.state == confirmed } &&
+                apply.none { it.state in setOf(OperationState.DISPATCHED.name, OperationState.UNKNOWN.name) }
+        }
+        check(resolved)
         check(dao.finish(sessionId, SessionState.COMPLETED.name, System.currentTimeMillis()) == 1)
     }
 

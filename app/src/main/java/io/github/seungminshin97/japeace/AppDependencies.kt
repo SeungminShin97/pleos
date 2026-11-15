@@ -3,9 +3,11 @@ package io.github.seungminshin97.japeace
 import io.github.seungminshin97.japeace.domain.vehicle.VehicleGateway
 import io.github.seungminshin97.japeace.domain.rest.RestRepository
 import io.github.seungminshin97.japeace.domain.rest.SettingsReader
+import io.github.seungminshin97.japeace.domain.rest.DemoRestCoordinator
 
-fun interface DemoControls {
+interface DemoControls {
     fun setParked(parked: Boolean)
+    fun changeSeatPosition(): Int?
 }
 
 data class AppDependencies(
@@ -14,4 +16,5 @@ data class AppDependencies(
     val settingsReader: SettingsReader,
     val demoControls: DemoControls? = null,
     val vehiclePermissions: List<String> = emptyList(),
+    val demoRestCoordinator: DemoRestCoordinator? = null,
 )

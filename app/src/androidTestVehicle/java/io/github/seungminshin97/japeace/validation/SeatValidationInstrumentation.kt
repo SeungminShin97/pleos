@@ -53,11 +53,20 @@ class SeatValidationInstrumentation : Instrumentation() {
             emit("environment", "fingerprint" to Build.FINGERPRINT, "operation" to arguments.getString("operation", "inventory"))
             car = Car.createCar(targetContext) ?: error("AAOS service unavailable")
             properties = car.getCarManager(Car.PROPERTY_SERVICE) as CarPropertyManager
+            val operation = arguments.getString("operation", "inventory")
+            if (operation == "position-config") {
+                reportSeatPositionProperties()
+                success = true
+                return
+            }
             vehicle = Vehicle(targetContext)
             vehicle.initialize()
             val axes = axes(vehicle.getSeat())
-            when (val operation = arguments.getString("operation", "inventory")) {
+            when (operation) {
                 "inventory" -> inventory(axes, vehicle.getSeat())
+                "memory" -> probeMemory(axes, vehicle.getSeat())
+                "memory-config" -> reportMemoryProperties()
+                "passenger-drive" -> observePassengerDrive(axes.first { it.name == "foreAft" })
                 "motion" -> motion(axes.first { it.name == arguments.getString("axis", "foreAft") })
                 else -> error("Unknown operation: $operation")
             }
@@ -72,6 +81,60 @@ class SeatValidationInstrumentation : Instrumentation() {
             finish(if (success) Activity.RESULT_OK else Activity.RESULT_CANCELED,
                 Bundle().apply { putString(REPORT_KEY_STREAMRESULT, "\n$report") })
         }
+    }
+
+    private fun reportSeatPositionProperties() {
+        val permission = "android.car.permission.CONTROL_CAR_SEATS"
+        val granted = targetContext.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        emit("positionPermission", "name" to permission, "granted" to granted)
+        val ids = mapOf(
+            "foreAft" to VehiclePropertyIds.SEAT_FORE_AFT_POS,
+            "height" to VehiclePropertyIds.SEAT_HEIGHT_POS,
+            "backrest" to VehiclePropertyIds.SEAT_BACKREST_ANGLE_1_POS,
+        )
+        val configs = properties.propertyList.associateBy { it.propertyId }
+        for ((axis, id) in ids) {
+            val config = configs[id]
+            emit("standardPositionProperty", "axis" to axis, "id" to id, "visible" to (config != null),
+                "access" to config?.access, "areas" to config?.areaIds?.let { org.json.JSONArray(it.toList()) })
+        }
+    }
+
+    private fun reportMemoryProperties() {
+        val propertyIds = listOf(VehiclePropertyIds.SEAT_MEMORY_SELECT, VehiclePropertyIds.SEAT_MEMORY_SET)
+        val configs = properties.propertyList.associateBy { it.propertyId }
+        for (propertyId in propertyIds) {
+            val config = configs[propertyId]
+            emit("memoryProperty", "id" to propertyId, "visible" to (config != null),
+                "access" to config?.access, "areas" to config?.areaIds?.let { org.json.JSONArray(it.toList()) })
+        }
+    }
+
+    private fun probeMemory(axes: List<Axis>, seat: Seat) {
+        val area = SeatArea(SeatValue.ROW_1_LEFT)
+        val slot = requireNotNull(arguments.getString("slot")).toInt()
+        val (_, areas) = await<Pair<CapabilityConfig, Map<SeatArea, AreaBounds<Int>>>> { done, failed ->
+            seat.checkSeatMemoryCapabilities({ config, bounds -> done(config to bounds) }, failed)
+        }
+        val bounds = requireNotNull(areas[area])
+        require(slot in bounds.minValue..bounds.maxValue)
+        val readable = axes.filter { positionCapabilities(it).second.containsKey(area) }
+        check(readable.isNotEmpty())
+        requireParked()
+        val before = readable.associate { it.name to read(it, area) }
+        requireParked()
+        val failure = AtomicReference<Exception?>()
+        emit("memoryRequested", "slot" to slot, "before" to JSONObject(before))
+        seat.selectSeatMemory(area, slot) { failure.set(it) }
+        repeat(3) {
+            SystemClock.sleep(1000)
+            requireParked()
+            failure.get()?.let { throw it }
+            val after = readable.associate { it.name to read(it, area) }
+            emit("memoryObserved", "slot" to slot, "sample" to it + 1,
+                "after" to JSONObject(after), "changed" to (before != after))
+        }
+        failure.get()?.let { throw it }
     }
 
     private data class Axis(
@@ -175,8 +238,39 @@ class SeatValidationInstrumentation : Instrumentation() {
         emit("replayResult", "targetRaw" to original, "actualRaw" to current, "exact" to (current == original), "attempts" to attempts)
     }
 
-    private fun pulse(axis: Axis, area: SeatArea, direction: MoveControl, millis: Long) {
-        requireParked()
+    private fun observePassengerDrive(axis: Axis) {
+        val passengerSeats = listOf(SeatValue.ROW_1_RIGHT, SeatValue.ROW_2_LEFT, SeatValue.ROW_2_RIGHT)
+        val readable = positionCapabilities(axis).second
+        val movable = moveCapabilities(axis).second
+        for (passenger in passengerSeats) {
+            val area = SeatArea(passenger)
+            runCatching {
+                check(area in readable && area in movable) { "Unsupported seat area" }
+                requireDriving()
+                val before = read(axis, area)
+                val direction = if (before > readable.getValue(area).minValue) MoveControl.BACKWARD else MoveControl.FORWARD
+                pulse(axis, area, direction, 300, ::requireDriving)
+                val after = read(axis, area)
+                emit("passengerPosition", "area" to areaName(area), "before" to before, "after" to after,
+                    "changed" to (before != after))
+            }.onFailure { emit("passengerFailure", "area" to areaName(area), "error" to describe(it)) }
+        }
+    }
+
+    private fun requireDriving() {
+        val gear = properties.getProperty<Int>(VehiclePropertyIds.GEAR_SELECTION, 0)
+        val speed = properties.getProperty<Float>(VehiclePropertyIds.PERF_VEHICLE_SPEED, 0)
+        check(gear.status == CarPropertyValue.STATUS_AVAILABLE && gear.value == VehicleGear.GEAR_DRIVE &&
+            speed.status == CarPropertyValue.STATUS_AVAILABLE && speed.value.isFinite() && speed.value > 0f) {
+            "Passenger probe requires a confirmed moving emulator"
+        }
+    }
+
+    private fun pulse(
+        axis: Axis, area: SeatArea, direction: MoveControl, millis: Long,
+        checkState: () -> Unit = ::requireParked,
+    ) {
+        checkState()
         try {
             command(axis, area, direction)
             SystemClock.sleep(millis)

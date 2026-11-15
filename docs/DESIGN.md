@@ -1,6 +1,6 @@
 # 자비스 (자.peace) 상세 설계
 
-W04 업데이트: Room 기반 프리셋, 원본 스냅샷, 세션과 작업 기록을 구현했습니다. DataStore와 실제 적용 및 복귀 coordinator는 아직 추가하지 않았습니다. 현재 구현과 한계는 [STORAGE_VALIDATION](STORAGE_VALIDATION.md)을 우선합니다.
+W05에서는 데모 모의 설정에 적용과 복귀를 연결했습니다. 변경 전 스냅샷과 적용 작업을 먼저 저장하고, 복귀 요청 시 확인된 변경만 역순으로 복귀 작업에 추가합니다. 직전 값이 다르면 중단하고, 전송한 값의 결과를 확인할 수 없으면 복구 기록을 보존합니다. 프로세스 재시작 시 기록을 조회하되 자동으로 명령을 재전송하지 않습니다. 기존 Room 스키마를 유지하며, 작업 순번으로 적용과 복귀를 구분합니다. W04 저장 검증은 [STORAGE_VALIDATION](STORAGE_VALIDATION.md)을 참고합니다.
 
 2026-11-08 구현 업데이트: 로컬 Pleos 부팅과 AAOS 기어 및 속도 읽기를 추가했습니다. 아래 초기 구현 현황은 작성 당시의 기준이며 현재 상태와 실측 결과는 [LOCAL_VALIDATION](LOCAL_VALIDATION.md)을 우선합니다. 좌석 쓰기, 프리셋, 음성 및 알람에 관한 내용은 계속 설계와 후속 계획입니다.
 
@@ -216,6 +216,8 @@ stateDiagram-v2
 
 공식 근거: [STT 시작·종료](https://document.pleos.ai/en/docs/pleos-only/connect-sdk-pleos/SpeechToText/start-and-stop), [Gleo 예제](https://document.pleos.ai/docs/pleos-only/app-integration-guide/guide/examples), [Gleo 스키마 전달](https://document.pleos.ai/docs/pleos-only/app-integration-guide/guide/deliver-schema).
 
+Pleos 에뮬레이터에서는 현재 음성 버튼의 Android 인텐트를 처리할 Activity가 없었습니다. 앱이 보일 때 시작한 Pleos STT 세션의 유지, 백그라운드 신규 시작, Gleo의 앱 호출은 [백그라운드 음성 검증 계획](VOICE_AND_SEAT_MEMORY.md#백그라운드-음성)의 개별 시나리오로 확인합니다.
+
 **판단:** 차량에 음성 비서가 있다는 사실과 일반 앱이 계속 마이크를 점유할 수 있다는 사실은 다릅니다. 현재 문서만으로 앱 자체의 무제한 상시 대기를 보장할 수 없습니다. Gleo의 승인·등록·에뮬레이터 사용 가능 여부도 실제로 확인해야 합니다.
 
 직접 마이크를 사용하는 개인 호출어 실험은 Android의 microphone foreground service, 런타임 권한, 백그라운드 시작 제한과 차량 오디오 정책을 따릅니다. 사용자가 앱을 연 상태에서 시작한 세션을 유지할 수 있는지와 재부팅·전원 전환 후 동작은 별개입니다. STT 서비스 경유 권한과 직접 녹음 권한도 구분합니다. [Android foreground service 문서](https://developer.android.com/develop/background-work/services/fgs/service-types#microphone)
@@ -235,7 +237,7 @@ stateDiagram-v2
 
 초기에는 제한된 명령과 슬롯(프리셋, 시간, 장소 종류)을 사용합니다. 인식이 모호하면 다시 확인하고, 음성·터치·Gleo가 같은 유스케이스를 호출하게 합니다. Gleo 연동용 함수명은 앱 구현 시 정의하며 이 문서의 발화가 공식 내장 명령이라는 의미는 아닙니다.
 
-Gleo의 `assets/schema.json` 및 Manifest 연동은 별도 구현 대상입니다. 외부 Intent는 명령·파라미터를 허용 목록으로 검사하고, 들어온 값으로 차량 API를 직접 호출하지 않습니다. 지원되는 발신자 검증 수단을 확인하고 모든 제어는 상태 검사와 사용자 확인을 거칩니다.
+차량 빌드의 `assets/schema.json`과 Manifest가 Gleo의 `OPEN_REST_SETTINGS`를 받아 홈 화면을 엽니다. Pleos Connect 2.1.0에서 앱을 강제 종료한 뒤 실제 음성으로 실행했습니다. 차량 상태를 변경하는 명령을 추가하려면 입력 검증, 상태 검사와 사용자 확인을 적용합니다. [음성 시험 기록](VOICE_AND_SEAT_MEMORY.md#백그라운드-음성)
 
 ### 장소 검색과 길 안내를 분리 — 후속 설계 참고
 

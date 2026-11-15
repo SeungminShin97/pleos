@@ -12,5 +12,5 @@ fun createDependencies(context: Context): AppDependencies = AppDependencies(
     vehicleGateway = PleosVehicleGateway(context.applicationContext),
     restRepository = RoomRestRepository(RestDatabase.get(context)),
     settingsReader = PleosSettingsReader(context.applicationContext),
-    vehiclePermissions = listOf(Car.PERMISSION_SPEED),
+    vehiclePermissions = listOf(Car.PERMISSION_SPEED, Car.PERMISSION_ENERGY),
 )

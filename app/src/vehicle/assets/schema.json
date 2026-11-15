@@ -1,0 +1,57 @@
+{
+  "packageName": "io.github.seungminshin97.japeace",
+  "appDescription": "An app for managing rest settings while parked.",
+  "invokeWord": "자비스",
+  "version": "0.1.0",
+  "actionCalls": [
+    {
+      "type": "function",
+      "function": {
+        "name": "OPEN_REST_SETTINGS",
+        "description": "Open the app screen where the user can review and configure rest settings.",
+        "component": "activity",
+        "parameters": {
+          "type": "object",
+          "properties": {},
+          "required": []
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "PREPARE_REST_ALARM",
+        "description": "Open a confirmation to set a vehicle rest alarm for the requested number of minutes.",
+        "component": "activity",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "minutes": {
+              "type": "number",
+              "description": "Whole minutes until the alarm, from 1 to 120."
+            }
+          },
+          "required": ["minutes"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "OPEN_REST_PLACES",
+        "description": "Search Jarvis for highway rest areas and drowsy-driving shelters by name, road, or direction.",
+        "component": "activity",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Name of a highway rest area or drowsy-driving shelter, road, or direction."
+            }
+          },
+          "required": []
+        }
+      }
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import android.car.VehicleGear
 import android.car.VehiclePropertyIds
 import android.car.hardware.CarPropertyValue
 import android.car.hardware.property.CarPropertyManager
+import android.car.hardware.property.EvChargeState
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.pm.ApplicationInfo
@@ -13,12 +14,15 @@ import android.os.HandlerThread
 import android.os.Build
 import android.util.Log
 import io.github.seungminshin97.japeace.domain.vehicle.Gear
+import io.github.seungminshin97.japeace.domain.vehicle.ChargingStatus
 import io.github.seungminshin97.japeace.domain.vehicle.VehicleGateway
 import io.github.seungminshin97.japeace.domain.vehicle.VehicleIssue
 import io.github.seungminshin97.japeace.domain.vehicle.VehicleReadings
 import io.github.seungminshin97.japeace.domain.vehicle.VehicleState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import io.github.seungminshin97.japeace.domain.vehicle.BatteryReading
+import io.github.seungminshin97.japeace.domain.vehicle.batteryReading
 
 /** AAOS read-only adapter. All property IPC runs off the UI thread. No vehicle writes. */
 class PleosVehicleGateway(private val context: Context) : VehicleGateway {
@@ -97,6 +101,15 @@ class PleosVehicleGateway(private val context: Context) : VehicleGateway {
             manager = properties
             val session = connection
             val readings = VehicleReadings()
+            var battery: BatteryReading? = null
+            var chargePortConnected: Boolean? = null
+            var chargingStatus: ChargingStatus? = null
+            fun snapshot() = readings.snapshot().copy(
+                batteryPercent = battery?.percent,
+                batteryUsesNominalCapacity = battery?.usesNominalCapacity == true,
+                chargePortConnected = chargePortConnected,
+                chargingStatus = chargingStatus,
+            )
             fun active() = current(token) && connection == session && manager === properties
             fun accept(value: CarPropertyValue<*>) {
                 if (value.areaId != 0) return
@@ -116,7 +129,7 @@ class PleosVehicleGateway(private val context: Context) : VehicleGateway {
                 override fun onChangeEvent(value: CarPropertyValue<*>) {
                     if (!active()) return
                     accept(value)
-                    publish(token, readings.snapshot())
+                    publish(token, snapshot())
                 }
 
                 override fun onErrorEvent(propertyId: Int, areaId: Int) {
@@ -125,7 +138,7 @@ class PleosVehicleGateway(private val context: Context) : VehicleGateway {
                         VehiclePropertyIds.GEAR_SELECTION -> readings.invalidateGear()
                         VehiclePropertyIds.PERF_VEHICLE_SPEED -> readings.invalidateSpeed()
                     }
-                    publish(token, readings.snapshot())
+                    publish(token, snapshot())
                 }
             }
             callback = events
@@ -138,13 +151,32 @@ class PleosVehicleGateway(private val context: Context) : VehicleGateway {
             }
             publish(token, VehicleState(connected = true, issue = VehicleIssue.DATA_UNAVAILABLE))
             val poll = object : Runnable {
+                private var energyRefreshAt = 0L
+
                 override fun run() {
                     if (!active()) return
                     try {
                         // ON_CHANGE silence does not prove freshness; re-query both statuses.
                         accept(properties.getProperty<Int>(VehiclePropertyIds.GEAR_SELECTION, 0))
                         accept(properties.getProperty<Float>(VehiclePropertyIds.PERF_VEHICLE_SPEED, 0))
-                        publish(token, readings.snapshot())
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        if (now >= energyRefreshAt) {
+                            energyRefreshAt = now + 10_000
+                            val level = properties.readOptional<Float>(VehiclePropertyIds.EV_BATTERY_LEVEL)
+                            val currentCapacity = properties.readOptional<Float>(VehiclePropertyIds.EV_CURRENT_BATTERY_CAPACITY)
+                            battery = batteryReading(level, currentCapacity) {
+                                properties.readOptional<Float>(VehiclePropertyIds.INFO_EV_BATTERY_CAPACITY)
+                            }
+                            chargePortConnected = properties.readOptional<Boolean>(VehiclePropertyIds.EV_CHARGE_PORT_CONNECTED)
+                            chargingStatus = when (properties.readOptional<Int>(VehiclePropertyIds.EV_CHARGE_STATE)) {
+                                EvChargeState.STATE_CHARGING -> ChargingStatus.CHARGING
+                                EvChargeState.STATE_FULLY_CHARGED -> ChargingStatus.TARGET_REACHED
+                                EvChargeState.STATE_NOT_CHARGING -> ChargingStatus.NOT_CHARGING
+                                EvChargeState.STATE_ERROR -> ChargingStatus.ERROR
+                                else -> null
+                            }
+                        }
+                        publish(token, snapshot())
                     } catch (_: SecurityException) {
                         clearSubscription()
                         publish(token, VehicleState(connected = true, issue = VehicleIssue.PERMISSION_REQUIRED))
@@ -169,6 +201,10 @@ class PleosVehicleGateway(private val context: Context) : VehicleGateway {
     }
 
     private fun current(token: Long) = synchronized(lock) { generation == token }
+
+    private inline fun <reified T> CarPropertyManager.readOptional(id: Int): T? = runCatching {
+        getProperty<T>(id, 0)?.takeIf { it.status == CarPropertyValue.STATUS_AVAILABLE }?.value
+    }.getOrNull()
 
     private fun publish(token: Long, value: VehicleState) = synchronized(lock) {
         if (generation == token) {

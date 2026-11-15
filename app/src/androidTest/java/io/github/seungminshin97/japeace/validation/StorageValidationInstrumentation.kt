@@ -6,7 +6,11 @@ import android.os.Bundle
 import androidx.room.Room
 import io.github.seungminshin97.japeace.data.rest.*
 import io.github.seungminshin97.japeace.domain.rest.*
+import io.github.seungminshin97.japeace.domain.vehicle.Gear
+import io.github.seungminshin97.japeace.domain.vehicle.VehicleGateway
+import io.github.seungminshin97.japeace.domain.vehicle.VehicleState
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import java.util.UUID
 
@@ -30,6 +34,95 @@ class StorageValidationInstrumentation : Instrumentation() {
             finishReport()
             return@runBlocking
         }
+        case("apply and restore are durable, serialized and idempotent") { fixture { _, _, repo ->
+            val settings = ExecutionFixture()
+            val coordinator = DemoRestCoordinator(repo, settings, settings)
+            val preset = repo.savePreset("execution", settings.captureDriverSeat())
+            settings.values["foreAft"] = 45
+            settings.values["height"] = 55
+            settings.beforeWrite = { operation ->
+                val journal = repo.getSession(operation.sessionId)
+                check(journal.operations.single { it.id == operation.id }.state == OperationState.DISPATCHED)
+                check(journal.before.settings.map { it.rawValue } == listOf(45, 55))
+            }
+            val results = coroutineScope {
+                List(2) { async { coordinator.apply("same-apply", preset.id) } }.awaitAll()
+            }
+            val applied = results.first()
+            check(results.all { it == applied } && applied.state == SessionState.APPLIED)
+            check(settings.writes == listOf("foreAft", "height"))
+            check(repo.observeActiveSession().first()?.id == applied.id)
+            check(runCatching { coordinator.apply("second", preset.id) }.isFailure)
+            val restored = coordinator.restore(applied.id)
+            check(restored.state == SessionState.COMPLETED)
+            check(restored.operations.size == 4)
+            check(settings.writes == listOf("foreAft", "height", "height", "foreAft"))
+            check(settings.values == mapOf("foreAft" to 45, "height" to 55))
+            check(coordinator.restore(applied.id) == restored)
+            check(repo.observeActiveSession().first() == null)
+        } }
+
+        case("driving blocks apply and interrupts remaining operations") { fixture { _, _, repo ->
+            val settings = ExecutionFixture()
+            val coordinator = DemoRestCoordinator(repo, settings, settings)
+            val preset = repo.savePreset("parking", settings.captureDriverSeat())
+            settings.values.replaceAll { _, _ -> 45 }
+            settings.setParked(false)
+            check(runCatching { coordinator.apply("driving", preset.id) }.isFailure)
+            check(repo.findRequest("driving") == null)
+            settings.setParked(true)
+            settings.afterWrite = { settings.setParked(false) }
+            val session = coordinator.apply("parking-lost", preset.id)
+            check(session.state == SessionState.RECOVERY_REQUIRED)
+            check(session.operations.map { it.state } == listOf(OperationState.CONFIRMED, OperationState.PLANNED))
+            check(settings.writes == listOf("foreAft"))
+            check(runCatching { coordinator.restore(session.id) }.isFailure)
+            settings.setParked(true)
+            settings.afterWrite = {}
+            check(coordinator.restore(session.id).state == SessionState.COMPLETED)
+            check(settings.values.values.all { it == 45 })
+        } }
+
+        case("manual conflict blocks restore across coordinator restart") { fixture { _, _, repo ->
+            val settings = ExecutionFixture()
+            val preset = repo.savePreset("manual", settings.captureDriverSeat())
+            settings.values["height"] = 55
+            val applied = DemoRestCoordinator(repo, settings, settings).apply("manual", preset.id)
+            settings.values["height"] = 75
+            val restarted = DemoRestCoordinator(repo, settings, settings)
+            check(restarted.restore(applied.id).state == SessionState.RECOVERY_REQUIRED)
+            check(settings.values["height"] == 75 && settings.writes == listOf("height"))
+            restarted.abandon(applied.id)
+            check(repo.observeActiveSession().first() == null)
+        } }
+
+        case("accepted write without matching readback stays unknown") { fixture { _, _, repo ->
+            val settings = ExecutionFixture()
+            val coordinator = DemoRestCoordinator(repo, settings, settings)
+            val preset = repo.savePreset("readback", settings.captureDriverSeat())
+            settings.values["foreAft"] = 45
+            settings.afterWrite = { settings.values["foreAft"] = 80 }
+            val result = coordinator.apply("unknown", preset.id)
+            check(result.operations.first().state == OperationState.UNKNOWN)
+            check(coordinator.restore(result.id).state == SessionState.RECOVERY_REQUIRED)
+            check(settings.writes == listOf("foreAft") && settings.values["foreAft"] == 80)
+        } }
+
+        case("cancellation records uncertainty without replay") { fixture { _, _, repo ->
+            val settings = ExecutionFixture()
+            val coordinator = DemoRestCoordinator(repo, settings, settings)
+            val preset = repo.savePreset("cancelled", settings.captureDriverSeat())
+            settings.values["foreAft"] = 45
+            settings.beforeWrite = { throw CancellationException("interrupted") }
+            check(runCatching { coordinator.apply("cancelled", preset.id) }.exceptionOrNull() is CancellationException)
+            val result = checkNotNull(repo.findRequest("cancelled"))
+            check(result.state == SessionState.RECOVERY_REQUIRED)
+            check(result.operations.first().state == OperationState.UNKNOWN)
+            settings.beforeWrite = {}
+            check(coordinator.apply("cancelled", preset.id) == result)
+            check(settings.writes.isEmpty())
+        } }
+
         case("preset survives database close and reopen") { fixture { name, database, repo ->
             val saved = repo.savePreset("나의 휴식", capture(10))
             database.close()
@@ -142,6 +235,34 @@ class StorageValidationInstrumentation : Instrumentation() {
         } }
 
         finishReport()
+    }
+
+    private class ExecutionFixture : DemoSettings, VehicleGateway {
+        override val state = MutableStateFlow(VehicleState(true, true, Gear.PARK, 0f))
+        val values = linkedMapOf("foreAft" to 10, "height" to 20)
+        val writes = mutableListOf<String>()
+        var afterWrite: () -> Unit = {}
+        var beforeWrite: suspend (SettingOperation) -> Unit = {}
+
+        fun setParked(parked: Boolean) {
+            state.value = VehicleState(true, true, if (parked) Gear.PARK else Gear.DRIVE, if (parked) 0f else 5f)
+        }
+
+        override suspend fun captureDriverSeat() = CapturedSettings(
+            CaptureProfile("execution", CaptureSource.DEMO, "v1"),
+            values.map { (key, value) -> SettingObservation(key, 1, value, 0, 100, 1, replayVerified = true) },
+        )
+
+        override suspend fun compareAndSet(operation: SettingOperation): DemoWriteResult {
+            beforeWrite(operation)
+            if (state.value.gear != Gear.PARK || values[operation.key] != operation.beforeRaw) {
+                return DemoWriteResult.REJECTED
+            }
+            values[operation.key] = operation.targetRaw
+            writes += operation.key
+            afterWrite()
+            return DemoWriteResult.ACCEPTED
+        }
     }
 
     private fun finishReport() {

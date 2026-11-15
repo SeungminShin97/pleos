@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.Flow
 
 enum class CaptureSource { DEMO, PLEOS_EMULATOR, VEHICLE }
 enum class OperationState { PLANNED, DISPATCHED, CONFIRMED, FAILED, UNKNOWN }
-enum class SessionState { PLANNED, RECOVERY_REQUIRED, COMPLETED, ABANDONED }
+enum class SessionState { PLANNED, APPLIED, RECOVERY_REQUIRED, COMPLETED, ABANDONED }
 
 /** A build/profile label is not a verified vehicle identity. No VIN is collected. */
 data class CaptureProfile(
@@ -86,4 +86,12 @@ interface RestRepository {
     suspend fun completeSession(sessionId: String)
     suspend fun abandonSession(sessionId: String)
     suspend fun recoverInterruptedSession()
+}
+
+interface RestExecutionStore : RestRepository {
+    suspend fun findRequest(requestId: String): StoredSession?
+    suspend fun getSession(sessionId: String): StoredSession
+    suspend fun markApplied(sessionId: String)
+    suspend fun prepareRestore(sessionId: String): StoredSession
+    suspend fun requireRecovery(sessionId: String)
 }

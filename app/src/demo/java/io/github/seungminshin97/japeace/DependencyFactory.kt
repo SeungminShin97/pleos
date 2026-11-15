@@ -6,9 +6,16 @@ import io.github.seungminshin97.japeace.data.vehicle.FakeVehicleGateway
 import io.github.seungminshin97.japeace.data.vehicle.FakeSettingsReader
 import io.github.seungminshin97.japeace.data.rest.RestDatabase
 import io.github.seungminshin97.japeace.data.rest.RoomRestRepository
+import io.github.seungminshin97.japeace.domain.rest.DemoRestCoordinator
 
-fun createDependencies(context: Context): AppDependencies {
+private var dependencies: AppDependencies? = null
+
+@Synchronized
+fun createDependencies(context: Context): AppDependencies = dependencies ?: run {
     val gateway = FakeVehicleGateway()
-    return AppDependencies(vehicleGateway = gateway, demoControls = gateway,
-        restRepository = RoomRestRepository(RestDatabase.get(context)), settingsReader = FakeSettingsReader(gateway))
+    val store = RoomRestRepository(RestDatabase.get(context))
+    val settings = FakeSettingsReader(gateway)
+    AppDependencies(vehicleGateway = gateway, demoControls = settings, restRepository = store,
+        settingsReader = settings, demoRestCoordinator = DemoRestCoordinator(store, gateway, settings))
+        .also { dependencies = it }
 }

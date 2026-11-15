@@ -7,6 +7,10 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val tmapAppKey = providers.gradleProperty("tmapAppKey")
+    .orElse(providers.environmentVariable("TMAP_APP_KEY"))
+    .orElse("")
+
 android {
     namespace = "io.github.seungminshin97.japeace"
     compileSdk = 35
@@ -17,7 +21,10 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "0.1.0"
-        testInstrumentationRunner = "io.github.seungminshin97.japeace.validation.StorageValidationInstrumentation"
+        resValue("string", "tmap_app_key", tmapAppKey.get())
+        testInstrumentationRunner = providers.gradleProperty("validationRunner")
+            .orElse("io.github.seungminshin97.japeace.validation.StorageValidationInstrumentation")
+            .get()
     }
 
     flavorDimensions += "environment"
@@ -30,7 +37,7 @@ android {
         }
         create("vehicle") {
             dimension = "environment"
-            resValue("string", "app_name", "자.peace")
+            resValue("string", "app_name", "자비스")
         }
     }
 
@@ -70,6 +77,8 @@ dependencies {
     ksp(libs.room.compiler)
     debugImplementation(libs.compose.ui.tooling)
     "vehicleImplementation"(libs.pleos.vehicle)
+    "vehicleImplementation"("ai.pleos.playground:SpeechToText:3.3.1")
+    "vehicleImplementation"("ai.pleos.playground:NaviHelper:3.0.5")
     "vehicleCompileOnly"(files(androidComponents.sdkComponents.sdkDirectory.map {
         it.file("platforms/android-35/optional/android.car.jar")
     }))

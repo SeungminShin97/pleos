@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>자비스</title>
+  <style>
+    main { max-width: 64rem; margin-inline: auto; }
+  </style>
+</head>
+<body>
+<main>
+  <nav aria-label="화면 이동">
+    <a href="#settings">휴식 설정</a>
+    <a href="#seats">동승석</a>
+    <a href="#places">쉴 곳</a>
+    <a href="#prepare">알람 및 음성</a>
+    <a href="#music">음악</a>
+    <a href="#electric">전기차 휴식</a>
+  </nav>
+  <section id="prepare">
+  <h1>알람 및 음성</h1>
+
+  <form id="alarm-form">
+    <fieldset>
+      <legend>알람</legend>
+      <p>
+        <label>시간 설정 <select id="time-mode">
+          <option value="duration">몇 분 후</option>
+          <option value="clock">시각 지정</option>
+        </select></label>
+      </p>
+      <p id="duration-row"><label>휴식 시간(분) <input id="minutes" type="number" min="1" max="120" value="20" required></label></p>
+      <p id="clock-row" hidden><label>알람 시각 <input id="clock-time" type="time" disabled required></label></p>
+      <p><label><input type="checkbox" id="vehicle" checked> 차량 알람</label></p>
+      <p><label><input type="checkbox" id="phone" disabled aria-describedby="phone-status"> 휴대폰 알람</label>
+        <span id="phone-status">연결된 기기 없음</span></p>
+      <button id="schedule">알람 예약</button>
+    </fieldset>
+  </form>
+  <p><button type="button" id="voice">음성 명령</button></p>
+  <p id="no-alarm">예약된 알람 없음</p>
+  <p id="vehicle-alarm" hidden></p>
+  <button type="button" id="cancel" hidden>차량 알람 취소</button>
+  <p id="phone-alarm" hidden></p>
+  <fieldset>
+    <legend>알람 소리</legend>
+    <button type="button" id="preview">미리 듣기</button>
+    <button type="button" id="sound-settings">알람 소리 설정</button>
+  </fieldset>
+  </section>
+
+  <section id="settings" hidden>
+  <h1>휴식 설정</h1>
+  <fieldset>
+    <legend>저장한 자세</legend>
+    <form id="save-form">
+      <label>자세 이름 <input id="name" maxlength="40" required></label>
+      <button>저장</button>
+    </form>
+    <p><label>저장한 자세 <select id="posture"><option>나의 휴식</option></select></label></p>
+    <button type="button" id="apply">설정 적용</button>
+    <button type="button" id="restore" hidden>원래 자세로 돌아가기</button>
+  </fieldset>
+  </section>
+
+  <section id="seats" hidden>
+    <h1>동승석 전후 조정</h1>
+    <fieldset>
+      <legend>좌석 선택</legend>
+      <label><input type="radio" name="seat" value="조수석" checked> 조수석</label>
+      <label><input type="radio" name="seat" value="뒷좌석 왼쪽"> 뒷좌석 왼쪽</label>
+      <label><input type="radio" name="seat" value="뒷좌석 오른쪽"> 뒷좌석 오른쪽</label>
+    </fieldset>
+    <button id="seat-forward" type="button">앞으로</button>
+    <button id="seat-back" type="button">뒤로</button>
+  </section>
+
+  <section id="places" hidden>
+    <h1>쉴 곳</h1>
+    <p><label>이름, 노선, 방향 검색 <input id="place-query" type="search"></label></p>
+    <label>분류
+      <select id="place-kind"><option value="">전체</option><option>졸음쉼터</option><option>휴게소</option></select>
+    </label>
+    <table>
+      <thead><tr><th scope="col">이름</th><th scope="col">분류</th><th scope="col">노선</th><th scope="col">선택</th></tr></thead>
+      <tbody id="place-results"></tbody>
+    </table>
+    <p id="selected-place" hidden></p>
+    <button id="set-destination" type="button" disabled>이 장소를 목적지로</button>
+    <button id="add-waypoint" type="button" disabled>이 장소를 경유지로 추가</button>
+    <p id="route-summary" aria-live="polite"></p>
+  </section>
+
+  <section id="music" hidden>
+    <h1>음악</h1>
+    <button id="rest-music" type="button">휴식 음악 재생</button>
+    <button id="media-app" type="button">음악 앱 열기</button>
+  </section>
+
+  <section id="electric" hidden>
+    <h1>전기차 휴식</h1>
+    <p>배터리 잔량 80%</p>
+    <form id="battery-form">
+      <label>배터리 경고 기준 (%) <input id="battery-limit" type="number" min="1" max="99" value="20" required></label>
+      <button>배터리 경고 기준 저장</button>
+    </form>
+    <button id="climate-check" type="button">공조 상태 확인</button>
+    <button id="climate-on" type="button">공조 켜기</button>
+    <button id="climate-off" type="button">공조 끄기</button>
+  </section>
+  <p id="status" role="status"></p>
+</main>
+<script>
+  const byId = id => document.getElementById(id)
+  const say = message => { byId('status').textContent = message }
+  let applied = false
+  let vehicleAlarm = null
+  let phoneAlarm = null
+  const phoneConnected = new URLSearchParams(location.search).get('phone') === 'connected'
+
+  function refresh() {
+    const useClock = byId('time-mode').value === 'clock'
+    byId('duration-row').hidden = useClock
+    byId('minutes').disabled = useClock
+    byId('clock-row').hidden = !useClock
+    byId('clock-time').disabled = !useClock
+    byId('apply').disabled = applied
+    byId('restore').hidden = !applied
+    byId('phone').disabled = !phoneConnected
+    byId('phone-status').textContent = phoneConnected ? '연결됨' : '연결된 기기 없음'
+    byId('schedule').disabled = !byId('vehicle').checked && !byId('phone').checked
+    byId('cancel').hidden = vehicleAlarm === null
+    byId('vehicle-alarm').hidden = vehicleAlarm === null
+    byId('vehicle-alarm').textContent = vehicleAlarm ? vehicleAlarm + ' 차량 알람' : ''
+    byId('phone-alarm').hidden = phoneAlarm === null
+    byId('phone-alarm').textContent = phoneAlarm ? phoneAlarm + ' 휴대폰에서 확인 필요' : ''
+    byId('no-alarm').hidden = vehicleAlarm !== null || phoneAlarm !== null
+  }
+
+  function showPage() {
+    const pages = ['settings', 'seats', 'places', 'prepare', 'music', 'electric']
+    const requested = location.hash.slice(1)
+    const page = pages.includes(requested) ? requested : 'settings'
+    for (const id of pages) byId(id).hidden = id !== page
+    for (const link of document.querySelectorAll('nav a')) {
+      if (link.hash === '#' + page) link.setAttribute('aria-current', 'page')
+      else link.removeAttribute('aria-current')
+    }
+    say('')
+  }
+  window.addEventListener('hashchange', showPage)
+
+  byId('save-form').onsubmit = event => {
+    event.preventDefault()
+    const name = byId('name').value.trim()
+    if (!name) { byId('name').focus(); return }
+    byId('posture').add(new Option(name, name, true, true))
+    say('자세를 저장했습니다.')
+  }
+  byId('apply').onclick = () => {
+    applied = true
+    say(byId('posture').value + ' 자세를 적용했습니다.')
+    refresh()
+  }
+  byId('restore').onclick = () => {
+    if (!confirm('원래 자세로 돌아갈까요?')) return
+    applied = false
+    say('원래 자세로 돌아갔습니다.')
+    refresh()
+  }
+  byId('time-mode').onchange = refresh
+  byId('vehicle').onchange = refresh
+  byId('phone').onchange = refresh
+  byId('alarm-form').onsubmit = event => {
+    event.preventDefault()
+    const time = byId('time-mode').value === 'clock'
+      ? byId('clock-time').value
+      : byId('minutes').value + '분 후'
+    if (byId('vehicle').checked) {
+      vehicleAlarm = time
+    }
+    if (byId('phone').checked) {
+      phoneAlarm = time
+    }
+    refresh()
+  }
+  byId('cancel').onclick = () => {
+    vehicleAlarm = null
+    say('차량 알람을 취소했습니다.')
+    refresh()
+  }
+  byId('preview').onclick = () => say('미리 듣기 (모의)')
+  byId('sound-settings').onclick = () => say('알람 소리 설정 (모의)')
+  byId('voice').onclick = () => say('음성 명령 (모의)')
+
+  const seatPositions = { '조수석': 50, '뒷좌석 왼쪽': 50, '뒷좌석 오른쪽': 50 }
+  function moveSeat(delta) {
+    const seat = document.querySelector('input[name=seat]:checked').value
+    seatPositions[seat] = Math.min(100, Math.max(0, seatPositions[seat] + delta))
+    say(seat + ' 위치 ' + seatPositions[seat])
+  }
+  byId('seat-forward').onclick = () => moveSeat(5)
+  byId('seat-back').onclick = () => moveSeat(-5)
+
+  const places = [
+    { name: '태인', kind: '졸음쉼터', road: '호남선', direction: '천안 방면' },
+    { name: '전주', kind: '졸음쉼터', road: '호남선', direction: '순천 방면' },
+    { name: '횡성(강릉)', kind: '휴게소', road: '영동선', direction: '강릉 방면' }
+  ]
+  let place = null
+  let destination = null
+  let waypoints = []
+  function updateRoute() {
+    byId('selected-place').hidden = !place
+    byId('selected-place').textContent = place ? '선택한 장소 ' + place.name : ''
+    byId('set-destination').disabled = !place
+    byId('add-waypoint').disabled = !place || !destination || place === destination ||
+      waypoints.includes(place) || waypoints.length === 2
+    byId('route-summary').textContent = destination
+      ? '현재 목적지 ' + destination.name + (waypoints.length ? ' / 경유지 ' + waypoints.map(stop => stop.name).join(', ') : '')
+      : ''
+  }
+  function showPlaces() {
+    const query = byId('place-query').value.trim().toLowerCase()
+    const kind = byId('place-kind').value
+    const rows = byId('place-results')
+    rows.replaceChildren()
+    for (const result of places) {
+      if ((kind && result.kind !== kind) ||
+          ![result.name, result.road, result.direction].join(' ').toLowerCase().includes(query)) continue
+      const row = rows.insertRow()
+      for (const value of [result.name, result.kind, result.road + ' / ' + result.direction]) {
+        row.insertCell().textContent = value
+      }
+      const select = document.createElement('button')
+      select.type = 'button'
+      select.textContent = result.name + ' 선택'
+      select.onclick = () => { place = result; updateRoute() }
+      row.insertCell().append(select)
+    }
+  }
+  byId('place-query').oninput = showPlaces
+  byId('place-kind').onchange = showPlaces
+  byId('set-destination').onclick = () => {
+    if (!confirm(place.name + '을(를) 목적지로 설정할까요?')) return
+    destination = place
+    waypoints = []
+    updateRoute()
+  }
+  byId('add-waypoint').onclick = () => {
+    waypoints.push(place)
+    updateRoute()
+  }
+
+  let playing = false
+  byId('rest-music').onclick = () => {
+    playing = !playing
+    byId('rest-music').textContent = playing ? '휴식 음악 중지' : '휴식 음악 재생'
+  }
+  byId('media-app').onclick = () => say('음악 앱 열기 (모의)')
+
+  byId('battery-form').onsubmit = event => {
+    event.preventDefault()
+    say(Number(byId('battery-limit').value) >= 80 ? '배터리 잔량이 설정한 기준 이하입니다.' : '기준을 저장했습니다.')
+  }
+  let climateOn = false
+  const showClimate = () => say(climateOn ? '공조 켜짐' : '공조 꺼짐')
+  byId('climate-check').onclick = showClimate
+  byId('climate-on').onclick = () => { climateOn = true; showClimate() }
+  byId('climate-off').onclick = () => { climateOn = false; showClimate() }
+
+  showPlaces()
+  refresh()
+  showPage()
+</script>
+</body>
+</html>
